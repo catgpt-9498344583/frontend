@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -54,9 +54,11 @@ export default function ChatbotUI() {
   const [model, setModel] = useState('gpt-neo-demo');
   const [temperature, setTemperature] = useState(0.7);
   const [conversations, setConversations] = useState<any[]>([
-    { id: uid(), title: 'Welcome', updatedAt: new Date(), messages: [
-      { id: uid(), role: 'assistant', content: 'Hey there 👋 I’m your CatGPT bot. Ask me about SFWE classes, clubs, scholarships, or anything else!', time: 'now' }
-    ] }
+    {
+      id: uid(), title: 'Welcome', updatedAt: new Date(), messages: [
+        { id: uid(), role: 'assistant', content: 'Hey there 👋 I’m your CatGPT bot. Ask me about SFWE classes, clubs, scholarships, or anything else!', time: 'now' }
+      ]
+    }
   ]);
   const [activeId, setActiveId] = useState(conversations[0].id);
   const active = useMemo(() => conversations.find(c => c.id === activeId)!, [conversations, activeId]);
@@ -87,18 +89,61 @@ export default function ChatbotUI() {
     const draft = { id: uid(), role: 'assistant', content: '', time: new Date().toLocaleTimeString() };
     setConversations(prev => prev.map(c => c.id === activeId ? ({ ...c, messages: [...c.messages, draft] }) : c));
 
-    const simulated = "Here’s a sample response. This UI is ready for your backend – just replace the demo handlers with API calls. It supports multi-turn chat, quick suggestions, and a settings panel for model and temperature.";
+    // const simulated = "Here’s a sample response. This UI is ready for your backend – just replace the demo handlers with API calls. It supports multi-turn chat, quick suggestions, and a settings panel for model and temperature.";
+    //
+    // for (let i = 0; i < simulated.length; i++) {
+    //   await new Promise(r => setTimeout(r, 6));
+    //   setConversations(prev => prev.map(c => {
+    //     if (c.id !== activeId) return c;
+    //     const msgs = [...c.messages];
+    //     msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: msgs[msgs.length - 1].content + simulated[i] };
+    //     return { ...c, messages: msgs };
+    //   }));
+    // }
+    // setStreaming(false);
 
-    for (let i = 0; i < simulated.length; i++) {
-      await new Promise(r => setTimeout(r, 6));
+
+    try {
+      const response = await fetch('http://localhost:5000/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: text,
+          model,
+          temperature,
+          conversationId: activeId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('Error response from backend: ' + errorText);
+      }
+
+      const data = await response.json();
+      const reply = data.response;
+
       setConversations(prev => prev.map(c => {
         if (c.id !== activeId) return c;
         const msgs = [...c.messages];
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: msgs[msgs.length - 1].content + simulated[i] };
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: reply };
         return { ...c, messages: msgs };
       }));
+
+    } catch (error) {
+      console.error('Error during request: ', error);
+      setConversations(prev => prev.map(c => {
+        if (c.id !== activeId) return c;
+        const msgs = [...c.messages];
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: 'Sorry, something went wrong.' };
+        return { ...c, messages: msgs };
+      }));
+
+    } finally {
+      setStreaming(false);
     }
-    setStreaming(false);
   };
 
   const newChat = () => {
@@ -112,7 +157,7 @@ export default function ChatbotUI() {
     setConversations(prev => prev.filter(c => c.id !== id));
   };
 
-  const copyLast = () => navigator.clipboard?.writeText(active.messages[active.messages.length-1]?.content || '');
+  const copyLast = () => navigator.clipboard?.writeText(active.messages[active.messages.length - 1]?.content || '');
 
   return (
     <div className="h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex">
@@ -124,11 +169,11 @@ export default function ChatbotUI() {
         <div className="px-3 pb-3 text-xs uppercase tracking-wide opacity-60">Conversations</div>
         <nav className="flex-1 overflow-y-auto space-y-1 px-2 pb-4">
           {conversations.map(c => (
-            <button key={c.id} onClick={() => setActiveId(c.id)} className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between hover:bg-zinc-100 dark:hover:bg-zinc-800 ${activeId===c.id?'bg-zinc-100 dark:bg-zinc-800': ''}`}>
+            <button key={c.id} onClick={() => setActiveId(c.id)} className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between hover:bg-zinc-100 dark:hover:bg-zinc-800 ${activeId === c.id ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}>
               <span className="truncate">{c.title}</span>
               <div className="flex items-center gap-2 opacity-70">
-                <button onClick={(e)=>{e.stopPropagation(); const t = prompt('Rename chat', c.title); if (t) renameChat(c.id, t);}} className="hover:opacity-100">✏️</button>
-                <button onClick={(e)=>{e.stopPropagation(); if (confirm('Delete chat?')) deleteChat(c.id);}} className="hover:opacity-100">🗑️</button>
+                <button onClick={(e) => { e.stopPropagation(); const t = prompt('Rename chat', c.title); if (t) renameChat(c.id, t); }} className="hover:opacity-100">✏️</button>
+                <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete chat?')) deleteChat(c.id); }} className="hover:opacity-100">🗑️</button>
               </div>
             </button>
           ))}
@@ -152,7 +197,7 @@ export default function ChatbotUI() {
 
         <section ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {active.messages.map((m: any) => (
-            <Bubble key={m.id} role={m.role} content={m.content} time={m.time} onCopy={()=> navigator.clipboard?.writeText(m.content)} onRegenerate={()=> sendMessage('Please regenerate your last response but be concise.')} isStreaming={streaming && m.role === 'assistant' && !m.content.endsWith('.')} />
+            <Bubble key={m.id} role={m.role} content={m.content} time={m.time} onCopy={() => navigator.clipboard?.writeText(m.content)} onRegenerate={() => sendMessage('Please regenerate your last response but be concise.')} isStreaming={streaming && m.role === 'assistant' && !m.content.endsWith('.')} />
           ))}
           <div className="mt-2 flex flex-wrap gap-2">
             {['What scholarships are open now?', 'Show SE clubs.', 'How to meet an advisor?', 'Internship tips'].map((s) => (
@@ -165,13 +210,13 @@ export default function ChatbotUI() {
           <div className="max-w-4xl mx-auto flex items-end gap-2">
             <textarea
               value={query}
-              onChange={e=>setQuery(e.target.value)}
+              onChange={e => setQuery(e.target.value)}
               placeholder="Send a message…"
               rows={1}
-              onKeyDown={e=>{ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(query);} }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(query); } }}
               className="flex-1 resize-none rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <button onClick={()=>sendMessage(query)} className="h-10 px-4 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50" disabled={!query.trim() || streaming}>Send</button>
+            <button onClick={() => sendMessage(query)} className="h-10 px-4 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50" disabled={!query.trim() || streaming}>Send</button>
           </div>
           <div className="max-w-4xl mx-auto mt-2 text-xs opacity-70 flex items-center justify-between">
             <span>Press Enter to send • Shift+Enter for new line</span>
