@@ -76,9 +76,12 @@ export default function ChatbotUI() {
     }
   }, [active]);
 
+
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
     setQuery('');
+
+    // Update conversation UI
     setConversations(prev => prev.map(c => c.id === activeId ? ({
       ...c,
       updatedAt: new Date(),
@@ -88,20 +91,6 @@ export default function ChatbotUI() {
     setStreaming(true);
     const draft = { id: uid(), role: 'assistant', content: '', time: new Date().toLocaleTimeString() };
     setConversations(prev => prev.map(c => c.id === activeId ? ({ ...c, messages: [...c.messages, draft] }) : c));
-
-    // const simulated = "Here’s a sample response. This UI is ready for your backend – just replace the demo handlers with API calls. It supports multi-turn chat, quick suggestions, and a settings panel for model and temperature.";
-    //
-    // for (let i = 0; i < simulated.length; i++) {
-    //   await new Promise(r => setTimeout(r, 6));
-    //   setConversations(prev => prev.map(c => {
-    //     if (c.id !== activeId) return c;
-    //     const msgs = [...c.messages];
-    //     msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: msgs[msgs.length - 1].content + simulated[i] };
-    //     return { ...c, messages: msgs };
-    //   }));
-    // }
-    // setStreaming(false);
-
 
     try {
       const response = await fetch('http://localhost:5000/api/chat', {
@@ -113,7 +102,7 @@ export default function ChatbotUI() {
           prompt: text,
           model,
           temperature,
-          conversationId: activeId,
+          conversationId: activeId,  // If needed in the backend
         }),
       });
 
@@ -123,24 +112,41 @@ export default function ChatbotUI() {
       }
 
       const data = await response.json();
-      const reply = data.response;
 
-      setConversations(prev => prev.map(c => {
-        if (c.id !== activeId) return c;
-        const msgs = [...c.messages];
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: reply };
-        return { ...c, messages: msgs };
-      }));
+      if (data.error) {
+        // Handle error
+        console.error(data.error);
+        setConversations(prev => prev.map(c => {
+          if (c.id !== activeId) return c;
+          const msgs = [...c.messages];
+          msgs[msgs.length - 1] = {
+            ...msgs[msgs.length - 1],
+            content: `Sorry, something went wrong.\n${data.error || JSON.stringify(data.error)
+              }`
+          };
+          return { ...c, messages: msgs };
+        }));
+      } else {
+        const reply = data.response;
+        setConversations(prev => prev.map(c => {
+          if (c.id !== activeId) return c;
+          const msgs = [...c.messages];
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: reply };
+          return { ...c, messages: msgs };
+        }));
+      }
 
     } catch (error) {
       console.error('Error during request: ', error);
-      setConversations(prev => prev.map(c => {
-        if (c.id !== activeId) return c;
-        const msgs = [...c.messages];
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: 'Sorry, something went wrong.' };
-        return { ...c, messages: msgs };
-      }));
-
+      // setConversations(prev => prev.map(c => {
+      //   if (c.id !== activeId) return c;
+      //   const msgs = [...c.messages];
+      //   msgs[msgs.length - 1] = {
+      //     ...msgs[msgs.length - 1],
+      //     content: `Sorry, something went wrong.\n${error || JSON.stringify(error)}`
+      //   };
+      //   return { ...c, messages: msgs };
+      // }));
     } finally {
       setStreaming(false);
     }
@@ -197,7 +203,7 @@ export default function ChatbotUI() {
 
         <section ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {active.messages.map((m: any) => (
-            <Bubble key={m.id} role={m.role} content={m.content} time={m.time} onCopy={() => navigator.clipboard?.writeText(m.content)} onRegenerate={() => sendMessage('Please regenerate your last response but be concise.')} isStreaming={streaming && m.role === 'assistant' && !m.content.endsWith('.')} />
+            <Bubble key={m.id} role={m.role} content={m.content} time={m.time} onCopy={() => navigator.clipboard?.writeText(m.content)} onRegenerate={() => sendMessage('Please regenerate your last response but be concise.')} isStreaming={streaming && m.role === 'assistant' && m.content && !m.content.endsWith('.')} />
           ))}
           <div className="mt-2 flex flex-wrap gap-2">
             {['What scholarships are open now?', 'Show SE clubs.', 'How to meet an advisor?', 'Internship tips'].map((s) => (
