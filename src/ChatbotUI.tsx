@@ -55,11 +55,21 @@ export default function ChatbotUI() {
   const [temperature, setTemperature] = useState(0.7);
   const [conversations, setConversations] = useState<any[]>([
     {
-      id: uid(), title: 'Welcome', updatedAt: new Date(), messages: [
-        { id: uid(), role: 'assistant', content: 'Hey there 👋 I’m your CatGPT bot. Ask me about SFWE classes, clubs, scholarships, or anything else!', time: 'now' }
+      id: uid(),
+      sessionId: null,   // <-- IMPORTANT
+      title: 'Welcome',
+      updatedAt: new Date(),
+      messages: [
+        {
+          id: uid(),
+          role: 'assistant',
+          content: 'Hey there 👋 I’m your CatGPT bot. Ask me about SFWE classes, clubs, scholarships, or anything else!',
+          time: 'now'
+        }
       ]
     }
   ]);
+
   const [activeId, setActiveId] = useState(conversations[0].id);
   const active = useMemo(() => conversations.find(c => c.id === activeId)!, [conversations, activeId]);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -70,83 +80,95 @@ export default function ChatbotUI() {
   }, [dark]);
 
   useEffect(() => {
+    const handleUnload = () => {
+      if (!active.sessionId) return;
+
+      const payload = JSON.stringify({ sessionId: active.sessionId });
+      navigator.sendBeacon('http://localhost:5000/api/disconnect', payload);
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [active.sessionId]);
+
+  useEffect(() => {
     if (listRef.current) {
       const el = listRef.current;
       el.scrollTop = el.scrollHeight;
     }
   }, [active]);
 
-
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
     setQuery('');
 
-    // Update conversation UI
+    // Add user message
     setConversations(prev => prev.map(c => c.id === activeId ? ({
       ...c,
       updatedAt: new Date(),
-      messages: [...c.messages, { id: uid(), role: 'user', content: text, time: new Date().toLocaleTimeString() }]
+      messages: [
+        ...c.messages,
+        { id: uid(), role: 'user', content: text, time: new Date().toLocaleTimeString() }
+      ]
     }) : c));
 
     setStreaming(true);
+
+    // Draft assistant message
     const draft = { id: uid(), role: 'assistant', content: '', time: new Date().toLocaleTimeString() };
     setConversations(prev => prev.map(c => c.id === activeId ? ({ ...c, messages: [...c.messages, draft] }) : c));
 
     try {
       const response = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: text,
-          model,
-          temperature,
-          conversationId: activeId,  // If needed in the backend
+          sessionId: active.sessionId,
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error('Error response from backend: ' + errorText);
-      }
+      const data = await response.json().catch(() => null);
 
-      const data = await response.json();
+      if (!response.ok || data?.error) {
+        const errorMsg = data?.error || `HTTP ${response.status}: ${response.statusText}`;
+        console.error(errorMsg);
 
-      if (data.error) {
-        // Handle error
-        console.error(data.error);
+        // Show error in chat bubble
         setConversations(prev => prev.map(c => {
           if (c.id !== activeId) return c;
           const msgs = [...c.messages];
-          msgs[msgs.length - 1] = {
-            ...msgs[msgs.length - 1],
-            content: `Sorry, something went wrong.\n${data.error || JSON.stringify(data.error)
-              }`
-          };
+          msgs[msgs.length - 1].content = `Unfortunately, an error occured: ${errorMsg}`;
           return { ...c, messages: msgs };
         }));
-      } else {
-        const reply = data.response;
-        setConversations(prev => prev.map(c => {
-          if (c.id !== activeId) return c;
-          const msgs = [...c.messages];
-          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: reply };
-          return { ...c, messages: msgs };
-        }));
+        return;
       }
 
-    } catch (error) {
-      console.error('Error during request: ', error);
-      // setConversations(prev => prev.map(c => {
-      //   if (c.id !== activeId) return c;
-      //   const msgs = [...c.messages];
-      //   msgs[msgs.length - 1] = {
-      //     ...msgs[msgs.length - 1],
-      //     content: `Sorry, something went wrong.\n${error || JSON.stringify(error)}`
-      //   };
-      //   return { ...c, messages: msgs };
-      // }));
+      // Save backend-provided sessionId
+      if (data.sessionId && active.sessionId !== data.sessionId) {
+        setConversations(prev => prev.map(c =>
+          c.id === activeId ? { ...c, sessionId: data.sessionId } : c
+        ));
+      }
+
+      // Add assistant response text
+      setConversations(prev => prev.map(c => {
+        if (c.id !== activeId) return c;
+        const msgs = [...c.messages];
+        msgs[msgs.length - 1].content = data.response || "No response received.";
+        return { ...c, messages: msgs };
+      }));
+
+    } catch (err: any) {
+      console.error('Request failed', err);
+
+      // Show network/fetch error in chat bubble
+      setConversations(prev => prev.map(c => {
+        if (c.id !== activeId) return c;
+        const msgs = [...c.messages];
+        msgs[msgs.length - 1].content = `⚠️ Request failed: ${err.message || err}`;
+        return { ...c, messages: msgs };
+      }));
     } finally {
       setStreaming(false);
     }
@@ -154,7 +176,21 @@ export default function ChatbotUI() {
 
   const newChat = () => {
     const id = uid();
-    setConversations(prev => ([{ id, title: 'New chat', updatedAt: new Date(), messages: [{ id: uid(), role: 'assistant', content: 'New conversation started. How can I help?', time: new Date().toLocaleTimeString() }] }, ...prev]));
+    setConversations(prev => ([
+      {
+        id,
+        sessionId: null,   // backend will generate
+        title: 'New chat',
+        updatedAt: new Date(),
+        messages: [{
+          id: uid(),
+          role: 'assistant',
+          content: 'New conversation started. How can I help?',
+          time: new Date().toLocaleTimeString()
+        }]
+      },
+      ...prev
+    ]));
     setActiveId(id);
   };
 
