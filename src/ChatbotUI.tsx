@@ -85,11 +85,15 @@ export default function ChatbotUI() {
       if (!active.sessionId) return;
 
       const payload = JSON.stringify({ sessionId: active.sessionId });
-      navigator.sendBeacon('http://localhost:5000/api/disconnect', payload);
+
+      // Wrap JSON in a Blob so the Content-Type is correct
+      const blob = new Blob([payload], { type: "application/json" });
+
+      navigator.sendBeacon("http://localhost:5000/api/disconnect", blob);
     };
 
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
   }, [active.sessionId]);
 
   useEffect(() => {
