@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { containsBlockedWords, getBlockedMessage } from './blocklist'
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -101,6 +102,21 @@ export default function ChatbotUI() {
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
     setQuery('');
+
+    // Check for blocked words
+    if (containsBlockedWords(text)) {
+      // Add user message
+      setConversations(prev => prev.map(c => c.id === activeId ? ({
+        ...c,
+        updatedAt: new Date(),
+        messages: [
+          ...c.messages,
+          { id: uid(), role: 'user', content: text, time: new Date().toLocaleTimeString() },
+          { id: uid(), role: 'assistant', content: getBlockedMessage(), time: new Date().toLocaleTimeString() }
+        ]
+      }) : c));
+      return;
+    }
 
     // Add user message
     setConversations(prev => prev.map(c => c.id === activeId ? ({
