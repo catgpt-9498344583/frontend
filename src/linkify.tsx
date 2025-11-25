@@ -6,7 +6,7 @@
 export function linkify(text: string): (string | JSX.Element)[] {
   // URL regex pattern
   const urlPattern = /(https?:\/\/[^\s]+)/g;
-  
+
   const parts: (string | JSX.Element)[] = [];
   let lastIndex = 0;
   let match;
@@ -21,13 +21,13 @@ export function linkify(text: string): (string | JSX.Element)[] {
     const url = match[0];
     parts.push(
       <a
-        key={match.index}
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-500 hover:text-blue-600 underline"
+        key={ match.index }
+        href = { url }
+        target = "_blank"
+        rel = "noopener noreferrer"
+        className = "text-blue-500 hover:text-blue-600 underline"
       >
-        {url}
+      { url }
       </a>
     );
 
