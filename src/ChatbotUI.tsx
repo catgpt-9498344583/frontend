@@ -9,7 +9,10 @@ function Bubble({ role, content, time, onCopy, onRegenerate, isStreaming }: any)
 
   // Function to sanitize content by removing escape characters like '\n' and extra spaces
   const sanitizeContent = (text: string) => {
-    return text.replace(/\\n/g, ' ').replace(/\\r/g, '').trim();
+    return text
+      .replace(/\\n+/g, ' ')  // Replace multiple '\n' characters with a single space
+      .replace(/\\r/g, '')     // Remove '\r' characters
+      .trim();                // Remove leading and trailing whitespace
   };
 
   return (
