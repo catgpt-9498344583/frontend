@@ -6,6 +6,12 @@ const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function Bubble({ role, content, time, onCopy, onRegenerate, isStreaming }: any) {
   const isUser = role === 'user';
+
+  // Function to sanitize content by removing escape characters like '\n' and extra spaces
+  const sanitizeContent = (text: string) => {
+    return text.replace(/\\n/g, ' ').replace(/\\r/g, '').trim();
+  };
+
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -14,7 +20,10 @@ function Bubble({ role, content, time, onCopy, onRegenerate, isStreaming }: any)
         </div>
       )}
       <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-3 shadow-sm ${isUser ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white dark:bg-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-bl-sm'}`}>
-        <div className="whitespace-pre-wrap leading-relaxed">{linkify(content)}</div>
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {/* Sanitize content before passing it to linkify */}
+          {linkify(sanitizeContent(content))}
+        </div>
         <div className="mt-2 flex items-center gap-2 text-xs opacity-70">
           <span>{time}</span>
           {!isUser && (
