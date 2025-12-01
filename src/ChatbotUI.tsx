@@ -8,12 +8,25 @@ function Bubble({ role, content, time, onCopy, onRegenerate, isStreaming }: any)
   const isUser = role === 'user';
 
   // Function to sanitize content by removing escape characters like '\n' and extra spaces
-  const sanitizeContent = (text: string) => {
-    return text
-      .replace(/\\n+/g, ' ')  // Replace multiple '\n' characters with a single space
-      .replace(/\\r/g, '')     // Remove '\r' characters
-      .trim();                // Remove leading and trailing whitespace
-  };
+
+  function sanitizeContent(text: string): string {
+    // Replace all escape sequences with their appropriate characters
+    text = text
+      .replace(/\\n+/g, '\n')      // Replace '\n' with an actual newline
+      .replace(/\\r/g, '')         // Remove '\r' characters
+      .replace(/\\t/g, ' ')        // Replace tab characters with a single space
+      .replace(/\\'/g, "'")        // Convert escaped single quotes to actual single quotes
+      .replace(/\\"/g, '"')        // Convert escaped double quotes to actual double quotes
+      .replace(/\\(?![nrt])/g, '') // Remove any other escape characters (except newline, tab, and carriage return)
+
+    // Remove non-printable characters (control characters) and extra spaces
+    text = text
+      .replace(/[^\x20-\x7E\n\r\t]/g, '') // Remove non-printable characters (except for \n, \r, and \t)
+      .replace(/\s+/g, ' ')             // Replace multiple spaces with a single space
+      .trim();                          // Remove leading and trailing spaces
+
+    return text;
+  }
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
